@@ -1,0 +1,59 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: ./.docker/app/Dockerfile
+    environment:
+      - APP_ENV=${APP_ENV}
+    container_name: agent
+    restart: unless-stopped
+    user: www-data
+    volumes:
+      - ./:/var/www/html
+    networks:
+      - default
+  nginx:
+     image: jkaninda/nginx-fpm:alpine
+     container_name: agent-nginx-server
+     restart: unless-stopped
+     ports:
+      - 8080:80
+     volumes:
+      - ./:/var/www/html
+     environment:
+       - DOCUMENT_ROOT=/var/www/html/public
+       - CLIENT_MAX_BODY_SIZE=1024M
+       - PHP_FPM_HOST=app:9000
+     networks:
+      - default
+  mariadb:
+    container_name: agent-mariadb
+    env_file:
+      - .env
+    image: mariadb:11.7
+    restart: unless-stopped
+    ports:
+      - '${FORWARD_DB_PORT:-3306}:3306'
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_PASSWORD}
+      MARIADB_DATABASE: ${DB_DATABASE}
+      MARIADB_USER: ${DB_USERNAME}
+      MARIADB_PASSWORD: ${DB_PASSWORD}
+      MARIADB_ALLOW_EMPTY_PASSWORD: 'yes'
+    volumes:
+      - .docker/db/init:/docker-entrypoint-initdb.d
+      - 'mariadb:/var/lib/mysql'
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:main
+    ports:
+      - "80:8080"
+    environment:
+      OPENAI_API_BASE_URL: "http://host.orb.internal:8080/prism/openai/v1"
+      OLLAMA_BASE_URL: ""
+    volumes:
+      - open-webui:/app/backend/data
+volumes:
+  mariadb:
+    driver: local
+  open-webui:
+    driver: local
